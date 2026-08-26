@@ -279,6 +279,7 @@ tplay rtmp://live.server.com/app/stream_key
 - `g` - toggle grayscale/color
 - `m` - toggle mute/unmute
 - `←` / `→` - seek backward/forward 5 seconds
+- `↑` / `↓` - increase/decrease the audio volume
 - `j` / `l` - seek backward/forward 10 seconds
 - `[` / `]` - decrease/increase playback speed by 0.25x
 - `,` / `.` - decrease/increase playback speed by 0.1x (fine control)

@@ -34,19 +34,23 @@ impl MpvAudioPlayer {
             ))
         })?;
         // Enable pitch-preserving time-stretching (scaletempo2 is MPV's default)
-        mpv.set_property("audio-pitch-correction", "yes").map_err(|err| {
-            MyError::Audio(format!(
-                "Failed to set audio-pitch-correction property: {:?}",
-                err
-            ))
-        })?;
+        mpv.set_property("audio-pitch-correction", "yes")
+            .map_err(|err| {
+                MyError::Audio(format!(
+                    "Failed to set audio-pitch-correction property: {:?}",
+                    err
+                ))
+            })?;
 
         mpv.command("loadfile", &[input_path])
             .map_err(|err| MyError::Audio(format!("Failed to load audio file: {:?}", err)))?;
         mpv.set_property("pause", true)
             .map_err(|err| MyError::Audio(format!("Failed to set pause property: {:?}", err)))?;
 
-        Ok(Self { mpv, current_speed: 1.0 })
+        Ok(Self {
+            mpv,
+            current_speed: 1.0,
+        })
     }
 }
 impl AudioPlayerControls for MpvAudioPlayer {
@@ -83,11 +87,7 @@ impl AudioPlayerControls for MpvAudioPlayer {
             .get_property("pause")
             .map_err(|err| MyError::Audio(format!("{:?}", err)))?;
 
-        if paused {
-            self.resume()
-        } else {
-            self.pause()
-        }
+        if paused { self.resume() } else { self.pause() }
     }
 
     /// Mutes the audio playback.
@@ -123,11 +123,25 @@ impl AudioPlayerControls for MpvAudioPlayer {
             .get_property("mute")
             .map_err(|err| MyError::Audio(format!("{:?}", err)))?;
 
-        if muted {
-            self.unmute()
-        } else {
-            self.mute()
-        }
+        if muted { self.unmute() } else { self.mute() }
+    }
+
+    /// Increases the volume of the audio
+    fn volume_up(&mut self) -> Result<(), MyError> {
+        let current: f64 = self.mpv.get_property("volume").unwrap_or(100.0);
+        let new_vol = (current + 5.0).clamp(0.0, 150.0);
+        self.mpv
+            .set_property("volume", new_vol)
+            .map_err(|err| MyError::Audio(format!("Volume up failed: {:?}", err)))
+    }
+
+    /// Decreases the volume of the audio
+    fn volume_down(&mut self) -> Result<(), MyError> {
+        let current: f64 = self.mpv.get_property("volume").unwrap_or(100.0);
+        let new_vol = (current - 5.0).clamp(0.0, 150.0);
+        self.mpv
+            .set_property("volume", new_vol)
+            .map_err(|err| MyError::Audio(format!("Volume down failed: {:?}", err)))
     }
 
     /// Stops the audio playback.

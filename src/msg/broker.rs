@@ -8,7 +8,7 @@ use crate::{
     audio::runner::Control as AudioControl, common::errors::MyError,
     pipeline::runner::Control as PipelineControl,
 };
-use crossbeam_channel::{select, Receiver, Sender};
+use crossbeam_channel::{Receiver, Sender, select};
 
 /// Enum representing the different control commands that can be sent to the Runner.
 #[derive(Debug, PartialEq)]
@@ -21,6 +21,9 @@ pub enum Control {
     Exit,
     /// Command to toggle between mute and unmute.
     MuteUnmute,
+    /// Command to increase and decrease the volume of the audio
+    VolumeUp,
+    VolumeDown,
     /// Command to set the character map used by the image pipeline.
     /// The argument represents the index of the desired character map.
     SetCharMap(u32),
@@ -140,6 +143,18 @@ impl MessageBroker {
                                 let _ = tx.send(AudioControl::MuteUnmute);
                             }
                         }
+                        Ok(BrokerControl::VolumeDown) => {
+                            if let Some(tx) = &self.tx_channel_audio {
+                                let _ = tx.send(AudioControl::VolumeDown);
+                            }
+                        }
+
+                        Ok(BrokerControl::VolumeUp) => {
+                            if let Some(tx) = &self.tx_channel_audio {
+                                let _ = tx.send(AudioControl::VolumeUp);
+                            }
+                        }
+
                         Ok(BrokerControl::Seek(seconds)) => {
                             if let Some(tx) = &self.tx_channel_pipeline {
                                 let _ = tx.send(PipelineControl::Seek(seconds));

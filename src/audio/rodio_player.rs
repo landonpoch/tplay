@@ -35,29 +35,27 @@ impl RodioAudioPlayer {
         let (_stream, stream_handle) = rodio::OutputStream::try_default().map_err(|err| {
             MyError::Audio(format!("Failed to initialize audio stream: {:?}", err))
         })?;
-        
+
         let audio_track = extract_audio(input_path)?;
-        
+
         // Read audio content into memory
         let file = std::fs::File::open(audio_track.path())
             .map_err(|err| MyError::Audio(format!("Failed to open audio file: {:?}", err)))?;
         let mut buf = std::io::BufReader::new(file);
         let mut content = Vec::new();
         buf.read_to_end(&mut content)?;
-        
+
         // Create sink
-        let sink = rodio::Sink::try_new(&stream_handle).map_err(|err| {
-            MyError::Audio(format!("Failed to create audio sink: {:?}", err))
-        })?;
-        
+        let sink = rodio::Sink::try_new(&stream_handle)
+            .map_err(|err| MyError::Audio(format!("Failed to create audio sink: {:?}", err)))?;
+
         // Create decoder and append to sink
         let cursor = Cursor::new(content.clone());
-        let decoder = rodio::decoder::Decoder::new(cursor).map_err(|err| {
-            MyError::Audio(format!("Failed to decode audio: {:?}", err))
-        })?;
+        let decoder = rodio::decoder::Decoder::new(cursor)
+            .map_err(|err| MyError::Audio(format!("Failed to decode audio: {:?}", err)))?;
         sink.append(decoder);
         sink.pause(); // Start paused
-        
+
         Ok(Self {
             sink,
             _stream,
@@ -71,30 +69,30 @@ impl RodioAudioPlayer {
     /// Rebuild the audio pipeline at a given position
     fn rebuild_at_position(&mut self, target_position: Duration) -> Result<(), MyError> {
         let was_paused = self.sink.is_paused();
-        
+
         self.sink.clear();
-        
+
         // Create new decoder
         let cursor = Cursor::new(self.content.clone());
         let decoder = rodio::decoder::Decoder::new(cursor).map_err(|err| {
             MyError::Audio(format!("Failed to decode audio for rebuild: {:?}", err))
         })?;
-        
+
         self.sink.append(decoder);
-        
+
         // Seek to target position
         let _ = self.sink.try_seek(target_position);
-        
+
         // Restore volume
         self.sink.set_volume(self.volume);
-        
+
         // Restore pause state
         if was_paused {
             self.sink.pause();
         } else {
             self.sink.play();
         }
-        
+
         Ok(())
     }
 }
@@ -105,6 +103,7 @@ impl AudioPlayerControls for RodioAudioPlayer {
     /// # Returns
     ///
     /// A `Result` indicating success or an `MyError::Audio` error.
+
     fn pause(&mut self) -> Result<(), MyError> {
         self.sink.pause();
         Ok(())
@@ -142,11 +141,28 @@ impl AudioPlayerControls for RodioAudioPlayer {
         }
     }
 
+    // Decreases the volume of the audio
+
+    fn volume_down(&mut self) -> Result<(), MyError> {
+        let new_vol = (self.sink.volume() - 0.05).clamp(0.0, 1.0);
+        self.sink.set_volume(new_vol);
+        self.volume = new_vol;
+        Ok(())
+    }
+    // Increases the volume of the audio
+    fn volume_up(&mut self) -> Result<(), MyError> {
+        let new_vol = (self.sink.volume() + 0.05).clamp(0.0, 1.0);
+        self.sink.set_volume(new_vol);
+        self.volume = new_vol;
+        Ok(())
+    }
+
     /// Mutes the audio playback.
     ///
     /// # Returns
     ///
     /// A `Result` indicating success or an `MyError::Audio` error.
+
     fn mute(&mut self) -> Result<(), MyError> {
         self.sink.set_volume(0.0);
         Ok(())
@@ -199,7 +215,7 @@ impl AudioPlayerControls for RodioAudioPlayer {
         let current_pos = self.sink.get_pos();
         let target_secs = (current_pos.as_secs_f64() + seconds).max(0.0);
         let target_duration = Duration::from_secs_f64(target_secs);
-        
+
         self.rebuild_at_position(target_duration)
     }
 
