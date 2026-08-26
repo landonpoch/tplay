@@ -2,21 +2,23 @@
 //! the terminal and handling user input events such as pausing/continuing,
 //! resizing, and changing character maps.
 use crate::{
+    StringInfo,
     common::{errors::*, sync::PlaybackClock},
     msg::broker::Control as MediaControl,
     subtitle::SubtitleManager,
-    StringInfo,
 };
 use crossbeam_channel::{Receiver, Sender};
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
     execute,
-    style::{Attribute, Color, Print, ResetColor, SetAttribute, SetBackgroundColor, SetForegroundColor},
+    style::{
+        Attribute, Color, Print, ResetColor, SetAttribute, SetBackgroundColor, SetForegroundColor,
+    },
     terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, SetTitle},
 };
 use std::{
-    io::{stdout, Result as IOResult, Write},
+    io::{Result as IOResult, Write, stdout},
     sync::{Arc, RwLock},
     time::Duration,
 };
@@ -251,11 +253,7 @@ impl Terminal {
                 if use_color {
                     let color = [rgb[0], rgb[1], rgb[2]];
                     if last_color != Some(color) {
-                        let _ = write!(
-                            buf,
-                            "\x1b[38;2;{};{};{}m{}",
-                            rgb[0], rgb[1], rgb[2], c
-                        );
+                        let _ = write!(buf, "\x1b[38;2;{};{};{}m{}", rgb[0], rgb[1], rgb[2], c);
                         last_color = Some(color);
                     } else {
                         buf.push(c);
@@ -327,7 +325,11 @@ impl Terminal {
             let mut last_bg: Option<[u8; 3]> = None;
             let mut cursor_at: Option<usize> = None;
 
-            for (i, _c) in string.chars().filter(|c| *c != '\r' && *c != '\n').enumerate() {
+            for (i, _c) in string
+                .chars()
+                .filter(|c| *c != '\r' && *c != '\n')
+                .enumerate()
+            {
                 let rgb_off = i * 6;
                 if rgb_off + 5 >= rgb_data.len() {
                     break;
@@ -419,37 +421,42 @@ impl Terminal {
 
         let subtitle = self.get_current_subtitle();
         if subtitle.is_empty() {
-             let subtitle_y = self.terminal_height.saturating_sub(SUBTITLE_LINES);
-             let full_width = self.terminal_width as usize;
-             let mut out = stdout();
-             for y in subtitle_y..self.terminal_height {
+            let subtitle_y = self.terminal_height.saturating_sub(SUBTITLE_LINES);
+            let full_width = self.terminal_width as usize;
+            let mut out = stdout();
+            for y in subtitle_y..self.terminal_height {
                 execute!(
                     out,
                     MoveTo(0, y),
-                    SetBackgroundColor(Color::Rgb { r: 40, g: 40, b: 40 }),
+                    SetBackgroundColor(Color::Rgb {
+                        r: 40,
+                        g: 40,
+                        b: 40
+                    }),
                     Print(" ".repeat(full_width)),
                     ResetColor
                 )?;
-             }
-             out.flush()?;
-             return Ok(());
+            }
+            out.flush()?;
+            return Ok(());
         }
 
         let full_width = self.terminal_width as usize;
         // Calculate dynamic width based on terminal size and preference
         // 1.0 size = 60% of screen width, scaling with terminal
         // Minimum 40 chars to ensure readability on very small screens
-        let target_width = (full_width as f64 * SUBTITLE_BASE_WIDTH_PERCENT * SUBTITLE_SIZE) as usize;
+        let target_width =
+            (full_width as f64 * SUBTITLE_BASE_WIDTH_PERCENT * SUBTITLE_SIZE) as usize;
         let max_width = target_width.max(40).min(full_width.saturating_sub(4));
-        
+
         let wrapped_lines = self.wrap_text(&subtitle, max_width);
-        
+
         // Dynamic height: Allow up to 1/4 of screen, minimum 3 lines
         // This ensures the box grows to fit text but doesn't take over whole screen
         let lines_count = wrapped_lines.len();
         let max_visual_lines = (self.terminal_height as usize / 4).max(3);
         let lines_to_draw = lines_count.min(max_visual_lines);
-        
+
         // Calculate Y start based on lines to draw
         let subtitle_y = self.terminal_height.saturating_sub(lines_to_draw as u16);
         let mut out = stdout();
@@ -460,7 +467,11 @@ impl Terminal {
             execute!(
                 out,
                 MoveTo(0, y),
-                SetBackgroundColor(Color::Rgb { r: 40, g: 40, b: 40 }),
+                SetBackgroundColor(Color::Rgb {
+                    r: 40,
+                    g: 40,
+                    b: 40
+                }),
                 Print(" ".repeat(full_width)),
                 ResetColor
             )?;
@@ -471,12 +482,20 @@ impl Terminal {
             let padding = full_width.saturating_sub(line.len()) / 2;
             let padded_line = format!("{:>width$}", line, width = padding + line.len());
             let fill_spaces = full_width.saturating_sub(padded_line.len());
-            
+
             execute!(
                 out,
                 MoveTo(0, y),
-                SetBackgroundColor(Color::Rgb { r: 40, g: 40, b: 40 }),
-                SetForegroundColor(Color::Rgb { r: 255, g: 255, b: 255 }),
+                SetBackgroundColor(Color::Rgb {
+                    r: 40,
+                    g: 40,
+                    b: 40
+                }),
+                SetForegroundColor(Color::Rgb {
+                    r: 255,
+                    g: 255,
+                    b: 255
+                }),
                 SetAttribute(Attribute::Bold),
                 Print(&padded_line),
                 Print(" ".repeat(fill_spaces)),
@@ -620,7 +639,17 @@ impl Terminal {
             }) => {
                 self.send_control(MediaControl::MuteUnmute)?;
             }
-
+            Event::Key(KeyEvent {
+                code: KeyCode::Up, ..
+            }) => {
+                self.send_control(MediaControl::VolumeUp)?;
+            }
+            Event::Key(KeyEvent {
+                code: KeyCode::Down,
+                ..
+            }) => {
+                self.send_control(MediaControl::VolumeDown)?;
+            }
             // Seek forward (right arrow)
             Event::Key(KeyEvent {
                 code: KeyCode::Right,
@@ -660,20 +689,20 @@ impl Terminal {
                 ..
             }) => {
                 self.subtitles_enabled = !self.subtitles_enabled;
-                
+
                 if let Some(ref mut manager) = self.local_subtitles {
                     manager.set_enabled(self.subtitles_enabled);
                 }
-                
+
                 self.send_control(MediaControl::ToggleSubtitle)?;
-                
+
                 let video_height = if self.subtitles_enabled {
                     self.terminal_height.saturating_sub(SUBTITLE_LINES)
                 } else {
                     self.terminal_height
                 };
                 self.send_control(MediaControl::Resize(self.terminal_width, video_height))?;
-                
+
                 if !self.subtitles_enabled {
                     let subtitle_y = self.terminal_height.saturating_sub(SUBTITLE_LINES);
                     let clear_line = " ".repeat(self.terminal_width as usize);
@@ -683,7 +712,7 @@ impl Terminal {
                     }
                     let _ = out.flush();
                 }
-                
+
                 while self
                     .rx_buffer
                     .recv_timeout(Duration::from_millis(1))

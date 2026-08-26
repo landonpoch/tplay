@@ -6,7 +6,7 @@ use crate::audio;
 use crate::audio::player::AudioPlayerControls;
 use crate::common::errors::MyError;
 use crate::common::sync::PlaybackClock;
-use crossbeam_channel::{select, Receiver};
+use crossbeam_channel::{Receiver, select};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
@@ -45,6 +45,11 @@ pub enum Control {
     Replay,
     /// Command to toggle between mute and unmute.
     MuteUnmute,
+
+    /// Command to increase and decrease the volume of the audio
+    VolumeUp,
+    VolumeDown,
+
     /// Command to stop the playback and exit the Runner.
     Exit,
     /// Command to seek forward or backward by the specified number of seconds.
@@ -91,15 +96,15 @@ impl Runner {
     pub fn run(&mut self, barrier: std::sync::Arc<std::sync::Barrier>) -> Result<(), MyError> {
         barrier.wait();
         self.audio_player.player.resume()?;
-        
+
         if let Some(ref clock) = self.playback_clock {
             clock.set_paused(false);
         }
-        
+
         while self.state != State::Stopped {
             self.update_subtitle();
             self.update_playback_clock();
-            
+
             select! {
                 recv(self.rx_controls) -> msg => {
                     match msg.unwrap() {
@@ -116,6 +121,14 @@ impl Runner {
                         },
                         Control::MuteUnmute => {
                             self.audio_player.player.toggle_mute()?;
+                        },
+
+                        Control::VolumeUp =>{
+                            let _ = self.audio_player.player.volume_up();
+                        },
+
+                        Control::VolumeDown =>{
+                            let _ = self.audio_player.player.volume_down();
                         },
                         Control::Replay => {
                             self.audio_player.player.rewind()?;

@@ -29,6 +29,8 @@ pub trait AudioPlayerControls {
     fn stop(&mut self) -> Result<(), MyError>;
     fn toggle_play(&mut self) -> Result<(), MyError>;
     fn mute(&mut self) -> Result<(), MyError>;
+    fn volume_up(&mut self) -> Result<(), MyError>;
+    fn volume_down(&mut self) -> Result<(), MyError>;
     fn unmute(&mut self) -> Result<(), MyError>;
     fn rewind(&mut self) -> Result<(), MyError>;
     fn toggle_mute(&mut self) -> Result<(), MyError>;
